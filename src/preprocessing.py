@@ -91,8 +91,6 @@ def covert_csv(df):
 
 def covert_csv_1(df):
     # Reshape the DataFrame
-    
-    print(len(df))
     reshaped_data = []
 
     for index, row in df.iterrows():

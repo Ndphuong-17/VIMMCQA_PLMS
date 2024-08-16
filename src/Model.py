@@ -1,10 +1,19 @@
 import torch
 import torch.nn as nn
 from src.Reader import mcqa_Clasification
+try:
+    from EmbbeddingTransformer import  ParagraphTransformer #, DocumentTransformer
+except:
+    try:
+        from src.EmbbeddingTransformer import  ParagraphTransformer
+    except:
+        from VIMMCQA_PLMS.src.EmbbeddingTransformer import  ParagraphTransformer
 from src.Retriever import Retrieval 
 from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_score
 import torch
 import os
+import re
+from string import punctuation
 
 
 device = device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -131,25 +140,11 @@ class VIMMCQA(torch.nn.Module):
 
         predicted_labels = torch.sigmoid(logits)  # Apply sigmoid to get probabilities
         predicted_labels = (predicted_labels > 0.5).float().to(device)
-        # predicted_labels = [[int(x) for x in t] for t in logits.tolist()]
-        
-        # # Convert predicted_label to tensor and move to device
-        # predicted_labels = torch.tensor(predicted_labels, device=device)
-
 
         print(f"predicted_label: {predicted_labels.shape} labels: {tensor_label.shape}")
-        
-        
-        # metric_acc = self.compute_metric(result)
-        # for metric_name, metric_value in metric_acc.items():
-        #     print({f'{metric_name}': metric_value})
-        # print("metric_acc completely ... \n", metric_acc)
-    
     
         return loss, predicted_labels
     
-
-
 
 class DataCollator:
     def __init__(self,
@@ -159,45 +154,143 @@ class DataCollator:
         super(DataCollator, self).__init__()
     
         self.task = model_args.task
-        self.retrieval = Retrieval(model_args = model_args, 
-                                   corpus = corpus,
-                                   )
+        self.model_args = model_args
         
-    
-    def __call__(self, raw_batch_dict):
+        # Initialize only what is needed for the task
         if self.task == 'VIMMCQA':
-            print("--- raw_batch_dict --- ", len(raw_batch_dict))
-            #print(raw_batch_dict)
-            print(raw_batch_dict[0].keys())
-            ques_options = [data['ques_opt'] for data in raw_batch_dict]
-            #print(ques_options)
-            #ques_options = sum(ques_options, [])
-            labels = [data['label'] for data in raw_batch_dict]
-            #ques_options, labels = raw_batch_dict[0].values()
-            numeric_labels = [list(map(int, label.strip('[]').split(', '))) for label in labels]
+            self.embedding = ParagraphTransformer(model_args)
+        elif self.task == 'full_VIMMCQA':
+            self.retrieval = Retrieval(model_args=model_args, corpus=corpus)
+    
+    def initialize_retrieval(self):
+        """Initialize retrieval only when needed."""
+        
+        # Load segmented corpus
+        with open(self.model_args.old_wseg_corpus_file, 'r', encoding='utf-8') as _file:
+            datas = _file.read()
+        wseg_datas = datas.split('\n')
+        print(len(wseg_datas))
+        print("Initializing corpus wseg_datas completely.")
 
-            tensor_label = torch.tensor(numeric_labels).to(device)
+        self.retrieval = Retrieval(model_args=self.model_args, corpus=wseg_datas)
 
-            # tensor_label = torch.tensor(labels).to(device).view(-1, 1)
-            vector_ques_opt = torch.zeros(0, 768).to(device)
-            vector_context = torch.zeros(0, 768).to(device)
+    def __call__(self, raw_batch_dict):
+        if self.task == 'full_VIMMCQA':
+            return self.full_VIMMCQA(raw_batch_dict)
+        
 
-            for ques_option in ques_options:
-                _result_retrieval = self.retrieval.retrieval(query=ques_option)
+        elif self.task == 'VIMMCQA':
+            
+            try:
+                raw_batch_dict[0]['context']
+                print("Containing context in dataset")
+                return self.VIMMCQA(raw_batch_dict)
+            
+            except KeyError:
+                print("Do not include context in the data; automatically switching to full_VIMMCQA to retrieve context for continuous.")
+                self.task = 'full_VIMMCQA'
+                self.initialize_retrieval()
+                return self.full_VIMMCQA(raw_batch_dict)
+    
+    def full_VIMMCQA(self, raw_batch_dict):
+        print("--- raw_batch_dict --- ", len(raw_batch_dict))
+        #print(raw_batch_dict)
+        print(raw_batch_dict[0].keys())
+        ques_options = [data['ques_opt'] for data in raw_batch_dict]
+        #print(ques_options)
+        #ques_options = sum(ques_options, [])
+        labels = [data['label'] for data in raw_batch_dict]
+        #ques_options, labels = raw_batch_dict[0].values()
+        numeric_labels = [list(map(int, label.strip('[]').split(', '))) for label in labels]
+
+        tensor_label = torch.tensor(numeric_labels).to(device)
+
+        # tensor_label = torch.tensor(labels).to(device).view(-1, 1)
+        vector_ques_opt = torch.zeros(0, 768).to(device)
+        vector_context = torch.zeros(0, 768).to(device)
+
+        for ques_option in ques_options:
+            _result_retrieval = self.retrieval.retrieval(query=ques_option)
 #                 print("_result_retrieval[3]: ", _result_retrieval[3].shape)
 #                 print("_result_retrieval[2]: ", _result_retrieval[2].shape)
-                vector_ques_opt = torch.cat((vector_ques_opt, _result_retrieval[3].unsqueeze(0)), dim=0)
-                vector_context = torch.cat((vector_context, _result_retrieval[2]), dim=0)
+            vector_ques_opt = torch.cat((vector_ques_opt, _result_retrieval[3].unsqueeze(0)), dim=0)
+            vector_context = torch.cat((vector_context, _result_retrieval[2]), dim=0)
+        
+        print(f'vector_ques_opt {vector_ques_opt.shape}')
+        print(f'vector_context {vector_context.shape}')
+        print(f'tensor_label:   {tensor_label.shape}')
+        print("--- data_collator completely ---")
+        return {
+            'vector_context': vector_context,
+            'vector_ques_opt': vector_ques_opt,
+            'tensor_label' : tensor_label
+        }
+    
+    
+    def VIMMCQA(self, raw_batch_dict):
+        print("--- raw_batch_dict --- ", len(raw_batch_dict))
+        print(raw_batch_dict[0].keys())
+        ques_options = [data['ques_opt'] for data in raw_batch_dict]
+        contexts = [data['context'] for data in raw_batch_dict]
+
+        labels = [data['label'] for data in raw_batch_dict]
+        numeric_labels = [list(map(int, label.strip('[]').split(', '))) for label in labels]
+        tensor_label = torch.tensor(numeric_labels).to(device)
+
+        # tensor_label = torch.tensor(labels).to(device).view(-1, 1)
+        vector_ques_opt = torch.zeros(0, 768).to(device)
+        vector_context = torch.zeros(0, 768).to(device)
+
+        for ques_option, context in zip(ques_options, contexts):
+            ques_option = self.preprocessing_para(ques_option)
+            context = self.preprocessing_para(context)
+
+            vector_ques_opt = torch.cat((
+                vector_ques_opt, 
+                self.embedding.new_forward(ques_option).unsqueeze(0).to(device)
+            ), dim=0)
             
-            print(f'vector_ques_opt {vector_ques_opt.shape}')
-            print(f'vector_context {vector_context.shape}')
-            print(f'tensor_label:   {tensor_label.shape}')
-            print("--- data_collator completely ---")
-            return {
-                'vector_context': vector_context,
-                'vector_ques_opt': vector_ques_opt,
-                'tensor_label' : tensor_label
-            }
+            vector_context = torch.cat((
+                vector_context, 
+                self.embedding.new_forward(context).unsqueeze(0).to(device)
+            ), dim=0)
+        
+        print(f'vector_ques_opt {vector_ques_opt.shape}')
+        print(f'vector_context {vector_context.shape}')
+        print(f'tensor_label:   {tensor_label.shape}')
+        print("--- data_collator completely ---")
+        return {
+            'vector_context': vector_context,
+            'vector_ques_opt': vector_ques_opt,
+            'tensor_label' : tensor_label
+        }
+    
+    
+    def preprocessing_para(self, paragraph):
+        paragraph = paragraph.split('.')
+        paragraph = sum([para.split(';') for para in paragraph], [])
+        texts = [self.preprocessing_data(text) for text in paragraph]
+        texts = [re.sub('\s+', ' ', t.strip()) for t in texts]
+        texts = [t for t in texts if t != ""]
+        
+        return texts
+        
+    def preprocessing_data(self, sample):
+        # Removing all punctuation
+        punct = set(punctuation) - {'_'}
+        pattern = "[" + '\\'.join(punct) + "]"
+        sample = re.sub(pattern, "", sample)
+
+        # If the sample becomes empty after removing punctuation, return it as is
+        if not sample.strip():
+            return sample
+
+        # Normalize whitespace
+        sample = re.sub(r"\s+", " ", sample)
+
+        return sample.strip().lower()
+    
+    
     
 
 
