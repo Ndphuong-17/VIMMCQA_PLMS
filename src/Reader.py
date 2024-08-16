@@ -3,7 +3,10 @@ import torch
 try:
     from EmbbeddingTransformer import  ParagraphTransformer #, DocumentTransformer
 except:
-    from src.EmbbeddingTransformer import  ParagraphTransformer
+    try:
+        from src.EmbbeddingTransformer import  ParagraphTransformer
+    except:
+        from VIMMCQA_PLMS.src.EmbbeddingTransformer import  ParagraphTransformer
 import re
 from string import punctuation
 
@@ -345,6 +348,3 @@ class scqa_Clasification(torch.nn.Module):
         sample = re.sub(r"\s+", " ", sample)
 
         return sample.strip().lower()        
-        
-        
-    

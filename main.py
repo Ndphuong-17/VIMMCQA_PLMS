@@ -243,6 +243,10 @@ def main():
         with open(os.path.join(args.output_dir, 'results.json'), 'w') as f:
             json.dump(data, f, indent=4)
         print("Test data saved to results.json")
+        
+    # Save the model, tokenizer, and training arguments
+    model.save_pretrained(args.output_dir)
+    trainer.save_state()
 
 if __name__ == "__main__":
     main()

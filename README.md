@@ -23,10 +23,10 @@ This script trains, validates, and tests a model for answering Vietnamese medica
 ### Command:
 ```cmd
 python main.py \
---train_file train.csv \
---validation_file val.csv \
---test_file test.csv \
---old_wseg_corpus_file wseg_corpus.txt \
+--train_file data_test/train1.csv \
+--validation_file data_test/val1.csv \
+--test_file data_test/test1.csv \
+--old_wseg_corpus_file Corpus/164750_wseg_corpus.txt \
 --output_dir output \
 --model_name_or_path ndpphuong/medical_vietnamese_bi_encoder_finetune_simcse_part_2 \
 --dimension 768 \

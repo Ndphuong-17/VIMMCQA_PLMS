@@ -82,7 +82,3 @@ class DocumentTransformer(SentenceTransformer):
         print("Shape of document_embeddings: ", merged_tensor.shape)
         
         return merged_tensor
-    
-
-
-        

@@ -115,3 +115,14 @@ def covert_csv_1(df):
     print(len(reshaped_df))
     
     return reshaped_df
+
+def convert_list_string_to_comma_separated(s):
+    # Evaluate the string to convert it to a list
+    # Use ast.literal_eval for safer evaluation
+    import ast
+    try:
+        list_values = ast.literal_eval(s)
+        # Join list elements with a comma
+        return ', '.join(list_values)
+    except (ValueError, SyntaxError):
+        return s  # Return the original string if it can't be evaluated

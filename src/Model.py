@@ -4,6 +4,7 @@ from src.Reader import mcqa_Clasification
 from src.Retriever import Retrieval 
 from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_score
 import torch
+import os
 
 
 device = device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -35,7 +36,31 @@ class VIMMCQA(torch.nn.Module):
         super(VIMMCQA, self).__init__()
         self.mcqa = mcqa_Clasification(model_args = model_args)
         # self.compute_metric = compute_metric
-        
+    
+    
+
+    def save_pretrained(self, save_directory):
+        if not os.path.exists(save_directory):
+            os.makedirs(save_directory)
+
+        # Save the model state_dict
+        model_path = os.path.join(save_directory, "pytorch_model.bin")
+        torch.save(self.state_dict(), model_path)
+
+        # Optionally save any other configurations needed
+        # config_path = os.path.join(save_directory, "config.json")
+        # with open(config_path, "w") as f:
+        #     json.dump(self.config, f)
+
+        print(f"Model saved to {save_directory}")
+
+    @classmethod
+    def from_pretrained(cls, load_directory, model_args):
+        model = cls(model_args=model_args)  # Create a new instance of the model
+        model_path = os.path.join(load_directory, "pytorch_model.bin")
+        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
+        print(f"Model loaded from {load_directory}")
+        return model
     
     def mcqaClassification(self, query_vectors, relevant_vectors):
         """
