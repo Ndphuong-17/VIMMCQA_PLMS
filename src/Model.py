@@ -64,7 +64,7 @@ class VIMMCQA(torch.nn.Module):
             - label: True labels.
         """
         #print(data_dict)
-        print("--- VIMMCQA ---")
+        # print("--- VIMMCQA ---")
 
         contexts_embedding, ques_opt_embedding, tensor_label = data_dict.values()
 
@@ -136,8 +136,8 @@ class DataCollator:
                 return self.full_VIMMCQA(raw_batch_dict)
     
     def VIMMCQA(self, raw_batch_dict):
-        print("--- raw_batch_dict --- ", len(raw_batch_dict))
-        print(raw_batch_dict[0].keys())
+        # print("--- raw_batch_dict --- ", len(raw_batch_dict))
+        # print(raw_batch_dict[0].keys())
 
         ques_options = [preprocessing_para(data['ques_opt']) for data in raw_batch_dict]
         contexts = [preprocessing_para(data['context']) for data in raw_batch_dict]
@@ -151,8 +151,8 @@ class DataCollator:
 
         ques_opt_embedding = self.embedding.new_forward(ques_options)
         contexts_embedding = self.embedding.new_forward(contexts)
-        print(f"ques_opt_embedding: ({ques_opt_embedding.shape}) {ques_opt_embedding.requires_grad}")
-        print(f"contexts          : ({contexts_embedding.shape}) {contexts_embedding.requires_grad}")
+        # print(f"ques_opt_embedding: ({ques_opt_embedding.shape}) {ques_opt_embedding.requires_grad}")
+        # print(f"contexts          : ({contexts_embedding.shape}) {contexts_embedding.requires_grad}")
         # should return [n, 768] and True
         return {
             'ques_opt_embedding': ques_opt_embedding, 
