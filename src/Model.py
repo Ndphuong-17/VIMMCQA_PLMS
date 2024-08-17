@@ -81,7 +81,7 @@ class VIMMCQA(torch.nn.Module):
         loss_fn = nn.BCEWithLogitsLoss()
         loss = loss_fn(logits, tensor_label)
 
-        print(f"predicted_label: {predicted_labels.shape}, {predicted_labels.requires_grad} \nlabels: {tensor_label.shape}, {tensor_label.requires_grad}")
+        # print(f"predicted_label: {predicted_labels.shape}, {predicted_labels.requires_grad} \nlabels: {tensor_label.shape}, {tensor_label.requires_grad}")
 
         return {
             'predicted_label': predicted_labels,
