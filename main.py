@@ -174,6 +174,10 @@ def main():
         train_result = trainer.train()
         print(train_result)
         print("Training process finished")
+        
+        # Save the model, tokenizer, and training arguments
+        model.save_pretrained(args.output_dir)
+        trainer.save_state()
 
     # Evaluation
     if args.validation and args.validation_file is not None:
