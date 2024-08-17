@@ -203,8 +203,8 @@ class DataCollator:
         #ques_options, labels = raw_batch_dict[0].values()
         numeric_labels = [list(map(int, label.strip('[]').split(', '))) for label in labels]
 
-        tensor_label = torch.tensor(numeric_labels).to(device)
-        tensor_label = tensor_label.clone().detach().requires_grad_(True).to(device)
+        tensor_label = torch.tensor(numeric_labels).float().to(device)  # Convert to float if needed
+        tensor_label = tensor_label.clone().detach().to(device)  # No gradients needed
 
 
         # tensor_label = torch.tensor(labels).to(device).view(-1, 1)
@@ -237,8 +237,8 @@ class DataCollator:
 
         labels = [data['label'] for data in raw_batch_dict]
         numeric_labels = [list(map(int, label.strip('[]').split(', '))) for label in labels]
-        tensor_label = torch.tensor(numeric_labels).to(device)
-        tensor_label = tensor_label.clone().detach().requires_grad_(True).to(device)
+        tensor_label = torch.tensor(numeric_labels).float().to(device)  # Convert to float if needed
+        tensor_label = tensor_label.clone().detach().to(device)  # No gradients needed
 
 
         # tensor_label = torch.tensor(labels).to(device).view(-1, 1)
