@@ -9,7 +9,7 @@ This script allows you to run training, validation, or testing for the VIMMCQA m
 1. Clone the repository:
    ```cmd
    git clone https://github.com/Ndphuong-17/VIMMCQA_PLMS.git
-   cd VIMMCQA
+   cd VIMMCQA_PLMS
    ```
 2. Install dependencies:
    ```cmd
