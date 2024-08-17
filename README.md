@@ -84,7 +84,6 @@ python main.py [options]
 
    ```cmd
    python main.py \
-   --validation_file data_test/val1.csv \
    --test_file data_test/test1.csv \
    --output_dir output \
    --task VIMMCQA \
