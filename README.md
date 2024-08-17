@@ -9,7 +9,7 @@ This script allows you to run training, validation, or testing for the VIMMCQA m
 1. Clone the repository:
    ```cmd
    git clone https://github.com/Ndphuong-17/VIMMCQA_PLMS.git
-   cd VIMMCQA
+   cd VIMMCQA_PLMS
    ```
 2. Install dependencies:
    ```cmd
@@ -26,73 +26,36 @@ python main.py [options]
 
 #### Parameters:
 
-- `--train_file` (str):  
-  Path to the training CSV file.  
-  **Default:** `None`
+- `--train_file` (str):    Path to the training CSV file.  **Default:** `None`
 
-- `--validation_file` (str):  
-  Path to the validation CSV file.  
-  **Default:** `None`
+- `--validation_file` (str):  Path to the validation CSV file.  **Default:** `None`
 
-- `--test_file` (str):  
-  Path to the test CSV file.  
-  **Default:** `None`
+- `--test_file` (str):  Path to the test CSV file.  **Default:** `None`
 
-- `--old_wseg_corpus_file` (str):  
-  Path to the wseg documentary corpus txt file.  
-  **Default:** `'Corpus/wseg_corpus.txt'`
+- `--old_wseg_corpus_file` (str):  Path to the wseg documentary corpus txt file.  **Default:** `'Corpus/wseg_corpus.txt'`
 
-- `--task` (str):  
-  Specifies the task to be performed by the model.  
-  **Default:** `'VIMMCQA'`  
+- `--task` (str):  Specifies the task to be performed by the model.  **Default:** `'VIMMCQA'`  
   **Description:** The `VIMMCQA` task is a standard multiple-choice question-answering task without context retrieval. If you want to retrieve relevant context information, use the `full_VIMMCQA` task.
 
-- `--output_dir` (str):  
-  Directory for saving outputs and the trained model.  
-  **Default:** `'output'`
+- `--output_dir` (str):  Directory for saving outputs and the trained model.  **Default:** `'output'`
 
-- `--model_directory` (str):  
-  Directory to load the model from, if resuming training or using a pre-trained model.  
-  **Default:** `None`
+- `--model_directory` (str):  Directory to load the model from, if resuming training or using a pre-trained model.  **Default:** `None`
 
-- `--model_name_or_path` (str):  
-  The name or path of the model to be used.  
-  **Default:** `'ndpphuong/medical_vietnamese_bi_encoder_finetune_simcse_part_2'`
+- `--model_name_or_path` (str):  The name or path of the model to be used.  **Default:** `'ndpphuong/medical_vietnamese_bi_encoder_finetune_simcse_part_2'`
 
-- `--dimension` (int):  
-  The dimensionality of the model, depending on the `model_name_or_path`.  
-  **Default:** `768`
+- `--dimension` (int):  The dimensionality of the model, depending on the `model_name_or_path`.  **Default:** `768`
 
-- `--per_device_train_batch_size` (int):  
-  The batch size for training.  
-  **Default:** `256`
+- `--per_device_train_batch_size` (int):  The batch size for training.  **Default:** `256`
 
-- `--num_train_epochs` (int):  
-  Number of epochs to train the model.  
-  **Default:** `3`
+- `--num_train_epochs` (int):  Number of epochs to train the model.  **Default:** `3`
 
-- `--num_choices` (int):  
-  The number of choices provided for the task.  
-  **Default:** `4`
+- `--test_index` (int):  Index of the test set to be used.  **Default:** `0`
 
-- `--test_index` (int):  
-  Index of the test set to be used.  
-  **Default:** `0`
+- `--train` (bool):  Set to `True` to perform training.  **Default:** `False`
 
-- `--set_wseg` (flag):  
-  If set, enables the wseg configuration.
+- `--validation` (bool):  Set to `True` to perform validation.  **Default:** `False`
 
-- `--train` (bool):  
-  Set to `True` to perform training.  
-  **Default:** `False`
-
-- `--validation` (bool):  
-  Set to `True` to perform validation.  
-  **Default:** `False`
-
-- `--test` (bool):  
-  Set to `True` to perform testing.  
-  **Default:** `False`
+- `--test` (bool):  Set to `True` to perform testing.  **Default:** `False`
 
 ---
 
@@ -121,7 +84,6 @@ python main.py [options]
 
    ```cmd
    python main.py \
-   --validation_file data_test/val1.csv \
    --test_file data_test/test1.csv \
    --output_dir output \
    --task VIMMCQA \
