@@ -166,53 +166,59 @@ def main():
 
     # Training
     if args.train:
-        print('Training...')    
-        logger.info("*** Training ***")
-        train_result = trainer.train()
-        print(train_result)
-        print("Training process finished")
+        with torch.no_grad():
+
+            print('Training...')    
+            logger.info("*** Training ***")
+            train_result = trainer.train()
+            print(train_result)
+            print("Training process finished")
 
     # Evaluation
     if args.validation and args.validation_file is not None:
-        print('Evaluation...')
-        logger.info("*** Evaluation ***")
-        eval_metrics = trainer.evaluate()
-        print(eval_metrics)
-        print("Evaluation process finished")
+        with torch.no_grad():
+
+            print('Evaluation...')
+            logger.info("*** Evaluation ***")
+            eval_metrics = trainer.evaluate()
+            print(eval_metrics)
+            print("Evaluation process finished")
 
     # Testing
     if args.test and args.test_file is not None:
-        print('Testing...')
-        logger.info("*** Testing ***")
-        predictions = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
-        print("Testing process finished")
+        with torch.no_grad():
 
-        # Test results
-        print("--- Test Results ---")
-        predictions_tensor = torch.Tensor(predictions[1])
-        labels_tensor = torch.tensor([eval(s) for s in dataset['test']['label']], dtype=torch.float)
-        metrics = compute_metric(predictions_tensor, labels_tensor)
-        print(metrics)
+            print('Testing...')
+            logger.info("*** Testing ***")
+            predictions = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
+            print("Testing process finished")
 
-        # Convert tensors to lists
-        predictions_list = predictions_tensor.tolist()
-        labels_list = labels_tensor.tolist()
+            # Test results
+            print("--- Test Results ---")
+            predictions_tensor = torch.Tensor(predictions[1])
+            labels_tensor = torch.tensor([eval(s) for s in dataset['test']['label']], dtype=torch.float)
+            metrics = compute_metric(predictions_tensor, labels_tensor)
+            print(metrics)
 
-        # Prepare data with id field
-        data = [
-            {
-                "id": i,
-                "pred": pred,
-                "label": label
-            }
-            for i, (pred, label) in enumerate(zip(predictions_list, labels_list))
-        ]
+            # Convert tensors to lists
+            predictions_list = predictions_tensor.tolist()
+            labels_list = labels_tensor.tolist()
 
-        # Save data to JSON file
-        with open(os.path.join(args.output_dir, 'results.json'), 'w') as f:
-            json.dump(data, f, indent=4)
-        print("Test data saved to results.json")
-        
+            # Prepare data with id field
+            data = [
+                {
+                    "id": i,
+                    "pred": pred,
+                    "label": label  
+                }
+                for i, (pred, label) in enumerate(zip(predictions_list, labels_list))
+            ]
+
+            # Save data to JSON file
+            with open(os.path.join(args.output_dir, 'results.json'), 'w') as f:
+                json.dump(data, f, indent=4)
+            print("Test data saved to results.json")
+            
     # Save the model, tokenizer, and training arguments
     model.save_pretrained(args.output_dir)
     trainer.save_state()
