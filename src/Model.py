@@ -125,8 +125,7 @@ class DataCollator:
         
         elif self.task == 'VIMMCQA':
             try:
-                raw_batch_dict[0]['context']
-                print("Containing context in dataset")
+                # print("Containing context in dataset")
                 return self.VIMMCQA(raw_batch_dict)
             except KeyError:
                 print("Do not include context in the data; automatically switching to full_VIMMCQA to retrieve context for continuous.")
