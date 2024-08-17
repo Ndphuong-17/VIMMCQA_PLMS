@@ -8,6 +8,7 @@ from datasets import load_dataset
 from src.Model import VIMMCQA, DataCollator, compute_metric
 from sklearn.model_selection import train_test_split
 import torch.nn as nn
+import pandas as pd
 
 # Device configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -19,9 +20,9 @@ logger = logging.getLogger(__name__)
 def parse_args():
     parser = argparse.ArgumentParser(description="Run VIMMCQA model training, validation, or testing")
 
-    parser.add_argument('--train_file', type=str, default='data_test/train1.csv', help="Path to the training csv file")
-    parser.add_argument('--validation_file', type=str, default='data_test/val1.csv', help="Path to the validation csv file")
-    parser.add_argument('--test_file', type=str, default='data_test/test1.csv', help="Path to the test csv file")
+    parser.add_argument('--train_file', type=str, default=None, help="Path to the training csv file")
+    parser.add_argument('--validation_file', type=str, default=None, help="Path to the validation csv file")
+    parser.add_argument('--test_file', type=str, default=None, help="Path to the test csv file")
     parser.add_argument('--old_wseg_corpus_file', type=str, default='Corpus/wseg_corpus.txt', help="Path to the wseg documentary corpus txt file")
 
     parser.add_argument('--task', type=str, default='VIMMCQA', 
@@ -78,23 +79,44 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     # Load dataset
-    if args.train_file:
+    if args.train_file and args.test_index == 0:
         dataset = load_dataset('csv', data_files={
             'train': args.train_file,
             'test': args.test_file if args.test_file else args.train_file,
             'val': args.validation_file if args.validation_file else args.train_file
         })
-    elif args.test_file and args.model_directory:
+    elif args.train_file and args.test_index > 0:
+        pd.read_csv(args.train_file)[: args.test_index]\
+            .to_csv(os.path.join(args.output_dir, f'train_{args.test_index}.json'))
+        pd.read_csv(args.test_file if args.test_file else args.train_file)[: args.test_index]\
+            .to_csv(os.path.join(args.output_dir, f'test_{args.test_index}.json'))
+        pd.read_csv(args.validation_file if args.validation_file else args.train_file)[: args.test_index]\
+            .to_csv(os.path.join(args.output_dir, f'val_{args.test_index}.json'))
+        dataset = load_dataset('csv', data_files={
+            'train': os.path.join(args.output_dir, f'train_{args.test_index}.json'),
+            'test':  os.path.join(args.output_dir, f'test_{args.test_index}.json'),
+            'val':   os.path.join(args.output_dir, f'val_{args.test_index}.json')
+        })
+
+    elif args.test_file and args.model_directory and args.test_index == 0:
         dataset = load_dataset('csv', data_files={
             'train': args.test_file,
             'test': args.test_file,
             'val': args.test_file
         })
-    else:
+    elif args.test_file and args.model_directory and args.test_index > 0:
+        pd.read_csv(args.test_file if args.test_file else args.train_file)[: args.test_index]\
+            .to_csv(os.path.join(args.output_dir, f'test_{args.test_index}.json'))
+        
+        dataset = load_dataset('csv', data_files={
+            'train': os.path.join(args.output_dir, f'test_{args.test_index}.json'),
+            'test':  os.path.join(args.output_dir, f'test_{args.test_index}.json'),
+            'val':   os.path.join(args.output_dir, f'test_{args.test_index}.json')
+        })
+    elif args.test_index == 0:
         raise ValueError("Either train_file or (test_file, model_directory) must be provided.")
-
-    if args.test_index != 0:
-        raise KeyError(f"Did not set up for testing {args.test_index} samples.")
+    else:
+        raise KeyError(f"Did not set up for testing {args.test_index} (< 0) samples.")
 
 
     if args.task == 'VIMMCQA':

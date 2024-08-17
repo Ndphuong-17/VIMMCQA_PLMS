@@ -1,12 +1,10 @@
-# VIMMCQA-PLMS
+# VIMMCQA-PLMS Model Training, Validation, and Testing
 
-VIMMCQA-plms is a project for Vietnamese medical multiple-choice question answering using transformer models.
+This script allows you to run training, validation, or testing for the VIMMCQA model, a multiple-choice question-answering model tailored for the Vietnamese medical context. The script is highly configurable with several arguments to fine-tune the model training process and manage different tasks.
 
-## Description
+## Usage
 
-This script trains, validates, and tests a model for answering Vietnamese medical multiple-choice questions.
-
-## Installation
+### Installation
 
 1. Clone the repository:
    ```cmd
@@ -18,48 +16,126 @@ This script trains, validates, and tests a model for answering Vietnamese medica
    pip install -r requirements.txt
    ```
 
-## Running the Script
-
 ### Command:
+
+To run the script, use the following command structure:
+
 ```cmd
-python main.py \
---train_file data_test/train1.csv \
---validation_file data_test/val1.csv \
---test_file data_test/test1.csv \
---old_wseg_corpus_file Corpus/164750_wseg_corpus.txt \
---output_dir output \
---model_name_or_path ndpphuong/medical_vietnamese_bi_encoder_finetune_simcse_part_2 \
---dimension 768 \
---task VIMMCQA \
---num_choices 4 \
---per_device_train_batch_size 256 \
---num_train_epochs 3 \
---test_index 0 \
---set_wseg True \
---test True \
---validation True \
---train True
+python main.py [options]
 ```
 
-### Parameters:
-- `--train_file`: Path to the training CSV file.
-- `--validation_file`: Path to the validation CSV file.
-- `--test_file`: Path to the test CSV file.
-- `--old_wseg_corpus_file`: Path to the word-segmented corpus file.
-- `--output_dir`: Directory to save output data.
-- `--model_name_or_path`: Pretrained model or model identifier from Hugging Face.
-- `--dimension`: Dimension of the model embeddings (default: 768).
-- `--task`: Task to perform (default: VIMMCQA).
-- `--num_choices`: Number of choices in multiple-choice questions (default: 4).
-- `--per_device_train_batch_size`: Batch size per device for training (default: 256).
-- `--num_train_epochs`: Number of training epochs (default: 3).
-- `--test_index`: Index of the test dataset (default: 0).
-- `--set_wseg`: Whether to segment sentences before tokenization (default: True).
-- `--test`: Whether to run testing (default: True).
-- `--validation`: Whether to run validation (default: True).
-- `--train`: Whether to run training (default: True).
+#### Parameters:
+
+- `--train_file` (str):  
+  Path to the training CSV file.  
+  **Default:** `None`
+
+- `--validation_file` (str):  
+  Path to the validation CSV file.  
+  **Default:** `None`
+
+- `--test_file` (str):  
+  Path to the test CSV file.  
+  **Default:** `None`
+
+- `--old_wseg_corpus_file` (str):  
+  Path to the wseg documentary corpus txt file.  
+  **Default:** `'Corpus/wseg_corpus.txt'`
+
+- `--task` (str):  
+  Specifies the task to be performed by the model.  
+  **Default:** `'VIMMCQA'`  
+  **Description:** The `VIMMCQA` task is a standard multiple-choice question-answering task without context retrieval. If you want to retrieve relevant context information, use the `full_VIMMCQA` task.
+
+- `--output_dir` (str):  
+  Directory for saving outputs and the trained model.  
+  **Default:** `'output'`
+
+- `--model_directory` (str):  
+  Directory to load the model from, if resuming training or using a pre-trained model.  
+  **Default:** `None`
+
+- `--model_name_or_path` (str):  
+  The name or path of the model to be used.  
+  **Default:** `'ndpphuong/medical_vietnamese_bi_encoder_finetune_simcse_part_2'`
+
+- `--dimension` (int):  
+  The dimensionality of the model, depending on the `model_name_or_path`.  
+  **Default:** `768`
+
+- `--per_device_train_batch_size` (int):  
+  The batch size for training.  
+  **Default:** `256`
+
+- `--num_train_epochs` (int):  
+  Number of epochs to train the model.  
+  **Default:** `3`
+
+- `--num_choices` (int):  
+  The number of choices provided for the task.  
+  **Default:** `4`
+
+- `--test_index` (int):  
+  Index of the test set to be used.  
+  **Default:** `0`
+
+- `--set_wseg` (flag):  
+  If set, enables the wseg configuration.
+
+- `--train` (bool):  
+  Set to `True` to perform training.  
+  **Default:** `False`
+
+- `--validation` (bool):  
+  Set to `True` to perform validation.  
+  **Default:** `False`
+
+- `--test` (bool):  
+  Set to `True` to perform testing.  
+  **Default:** `False`
 
 ---
 
-### Notes:
+
+## Examples
+
+1. **Full features with none context retrieval**
+
+   ```cmd
+   python main.py \
+   --train_file data_test/train1.csv \
+   --validation_file data_test/val1.csv \
+   --test_file data_test/test1.csv \
+   --output_dir output \
+   --task VIMMCQA \
+   --model_name_or_path ndpphuong/medical_vietnamese_bi_encoder_finetune_simcse_part_2 \
+   --dimension 768 \
+   --per_device_train_batch_size 256 \
+   --num_train_epochs 3 \
+   --test True \
+   --validation True \
+   --train True
+   ```
+
+2. **Testing with a pre-trained model and none context retrieval**
+
+   ```cmd
+   python main.py \
+   --validation_file data_test/val1.csv \
+   --test_file data_test/test1.csv \
+   --output_dir output \
+   --task VIMMCQA \
+   --model_directory Result \
+   --model_name_or_path ndpphuong/medical_vietnamese_bi_encoder_finetune_simcse_part_2 \
+   --dimension 768 \
+   --test True \
+   ```
+
+4. **Using full_VIMMCQA with context retrieval:**
+
+   ```cmd
+    python main.py --task full_VIMMCQA --train_file path/to/train.csv --train True
+    ```
+
+## Notes:
 - Ensure paths and model names are correctly specified based on your setup.
