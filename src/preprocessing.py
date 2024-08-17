@@ -124,3 +124,34 @@ def convert_list_string_to_comma_separated(s):
         return ', '.join(list_values)
     except (ValueError, SyntaxError):
         return s  # Return the original string if it can't be evaluated
+    
+    
+def preprocessing_para(paragraph):
+    paragraph = paragraph.split('.')
+    paragraph = sum([para.split(';') for para in paragraph], [])
+    texts = [preprocessing_data(text) for text in paragraph]
+    texts = [re.sub('\s+', ' ', t.strip()) for t in texts]
+    texts = [t for t in texts if t != ""]
+    
+    return texts
+    
+
+def preprocessing_data(sample):
+    # Removing all punctuation except '_'
+    punct = set(punctuation) - {'_'}
+    
+    # Properly escape all special characters
+    escaped_punct = ''.join(re.escape(char) for char in punct)
+    pattern = "[" + escaped_punct + "]"
+    
+    # Remove punctuation
+    sample = re.sub(pattern, "", sample)
+
+    # If the sample becomes empty after removing punctuation, return it as is
+    if not sample.strip():
+        return sample
+
+    # Normalize whitespace
+    sample = re.sub(r"\s+", " ", sample)
+
+    return sample.strip().lower()

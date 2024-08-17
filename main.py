@@ -5,10 +5,10 @@ import logging
 import json
 from transformers import TrainingArguments, set_seed, Trainer
 from datasets import load_dataset
-from src.Model import VIMMCQA, DataCollator, compute_metric
-from sklearn.model_selection import train_test_split
+from src.Model import VIMMCQA, DataCollator, compute_metrics, compute_metric
 import torch.nn as nn
 import pandas as pd
+
 
 # Device configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 def parse_args():
     parser = argparse.ArgumentParser(description="Run VIMMCQA model training, validation, or testing")
 
-    parser.add_argument('--train_file', type=str, default=None, help="Path to the training csv file")
-    parser.add_argument('--validation_file', type=str, default=None, help="Path to the validation csv file")
-    parser.add_argument('--test_file', type=str, default=None, help="Path to the test csv file")
+    parser.add_argument('--train_file', type=str, default='data_test/train1.csv', help="Path to the training csv file")
+    parser.add_argument('--validation_file', type=str, default='data_test/val1.csv', help="Path to the validation csv file")
+    parser.add_argument('--test_file', type=str, default='data_test/test1.csv', help="Path to the test csv file")
     parser.add_argument('--old_wseg_corpus_file', type=str, default='Corpus/wseg_corpus.txt', help="Path to the wseg documentary corpus txt file")
 
     parser.add_argument('--task', type=str, default='VIMMCQA', 
@@ -37,6 +37,7 @@ def parse_args():
     parser.add_argument('--dimension', type=int, default=768, help="Dimension of the model, based on the model_name_or_path")
     parser.add_argument('--per_device_train_batch_size', type=int, default=256, help="Batch size for training")
     parser.add_argument('--num_train_epochs', type=int, default=3, help="Number of training epochs")
+    parser.add_argument('--threshold', type=float, default=0.5, help="Threshold for labeling")
 
     parser.add_argument('--num_choices', type=int, default=4, help="Number of choices for the task")
     parser.add_argument('--test_index', type=int, default=0, help="Index of the test set")
@@ -47,11 +48,10 @@ def parse_args():
     parser.add_argument('--train',default = False, help="Set to True to perform training")
     return parser.parse_args()
 
-def main():
 
+def main():
     args = parse_args()
 
-    
     # Create the directory if it doesn't exist
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -67,7 +67,10 @@ def main():
         report_to=['tensorboard'],
         remove_unused_columns=False,
         per_device_train_batch_size=args.per_device_train_batch_size,
+        per_device_eval_batch_size=args.per_device_train_batch_size,
         num_train_epochs=args.num_train_epochs,
+        eval_strategy="epoch",
+        logging_dir= os.path.join(args.output_dir, "logs"),
     )
 
     # Set seed before initializing model
@@ -130,15 +133,6 @@ def main():
         print(len(wseg_datas))
         print("Initializing corpus wseg_datas completely.")
 
-
-    # Initialize data collator
-    data_collator = DataCollator(
-        model_args=args,
-        corpus=wseg_datas
-    )
-    print("Initializing dataCollator completely.")
-    print(data_collator)
-
     if args.model_directory:
         model = VIMMCQA.from_pretrained(args.model_directory, model_args=args)
         print("Loading model completely.")
@@ -150,15 +144,24 @@ def main():
             model = nn.DataParallel(model)
         print("Initializing model completely.")
 
-    # Trainer setup
+
+    # Initialize data collator
+    data_collator = DataCollator(
+        model_args=args,
+        corpus=wseg_datas
+    )
+    print("Initializing dataCollator completely.")
+    print(data_collator)
+
+    # Initialize the Trainer
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=dataset['train'],
         eval_dataset=dataset['val'],
         data_collator=data_collator,
+        compute_metrics=compute_metrics,  # Pass the compute_metrics function
     )
-
     # Show number of parameters
     total_params = sum(p.numel() for p in model.parameters())
     logger.info(f"Total parameters: {total_params}")
@@ -166,59 +169,53 @@ def main():
 
     # Training
     if args.train:
-        with torch.no_grad():
-
-            print('Training...')    
-            logger.info("*** Training ***")
-            train_result = trainer.train()
-            print(train_result)
-            print("Training process finished")
+        print('Training...')    
+        logger.info("*** Training ***")
+        train_result = trainer.train()
+        print(train_result)
+        print("Training process finished")
 
     # Evaluation
     if args.validation and args.validation_file is not None:
-        with torch.no_grad():
-
-            print('Evaluation...')
-            logger.info("*** Evaluation ***")
-            eval_metrics = trainer.evaluate()
-            print(eval_metrics)
-            print("Evaluation process finished")
+        print('Evaluation...')
+        logger.info("*** Evaluation ***")
+        eval_metrics = trainer.evaluate()
+        print(eval_metrics)
+        print("Evaluation process finished")
 
     # Testing
     if args.test and args.test_file is not None:
-        with torch.no_grad():
+        print('Testing...')
+        logger.info("*** Testing ***")
+        predictions = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
+        print("Testing process finished")
 
-            print('Testing...')
-            logger.info("*** Testing ***")
-            predictions = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
-            print("Testing process finished")
+        # Test results
+        print("--- Test Results ---")
+        predictions_tensor = torch.Tensor(predictions[1])
+        labels_tensor = torch.tensor([eval(s) for s in dataset['test']['label']], dtype=torch.float)
+        metrics = compute_metric(predictions_tensor, labels_tensor)
+        print(metrics)
 
-            # Test results
-            print("--- Test Results ---")
-            predictions_tensor = torch.Tensor(predictions[1])
-            labels_tensor = torch.tensor([eval(s) for s in dataset['test']['label']], dtype=torch.float)
-            metrics = compute_metric(predictions_tensor, labels_tensor)
-            print(metrics)
+        # Convert tensors to lists
+        predictions_list = predictions_tensor.tolist()
+        labels_list = labels_tensor.tolist()
 
-            # Convert tensors to lists
-            predictions_list = predictions_tensor.tolist()
-            labels_list = labels_tensor.tolist()
+        # Prepare data with id field
+        data = [
+            {
+                "id": i,
+                "pred": pred,
+                "label": label
+            }
+            for i, (pred, label) in enumerate(zip(predictions_list, labels_list))
+        ]
 
-            # Prepare data with id field
-            data = [
-                {
-                    "id": i,
-                    "pred": pred,
-                    "label": label  
-                }
-                for i, (pred, label) in enumerate(zip(predictions_list, labels_list))
-            ]
-
-            # Save data to JSON file
-            with open(os.path.join(args.output_dir, 'results.json'), 'w') as f:
-                json.dump(data, f, indent=4)
-            print("Test data saved to results.json")
-            
+        # Save data to JSON file
+        with open(os.path.join(args.output_dir, 'results.json'), 'w') as f:
+            json.dump(data, f, indent=4)
+        print("Test data saved to results.json")
+        
     # Save the model, tokenizer, and training arguments
     model.save_pretrained(args.output_dir)
     trainer.save_state()

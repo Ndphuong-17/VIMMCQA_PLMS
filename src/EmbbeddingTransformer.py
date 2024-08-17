@@ -3,82 +3,84 @@ import torch.nn as nn
 import torch
 import tqdm
 
-from sentence_transformers import SentenceTransformer
-import torch.nn as nn
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 import torch
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-class ParagraphTransformer(SentenceTransformer):
-    def __init__(self, model_args):
+import torch.nn as nn
+from transformers import AutoTokenizer, AutoModel
 
-        # Initialize the ParagraphTransformer by inheriting from SentenceTransformer
-        # SentenceTransformer is a library for generating sentence embeddings
-
-        # Initialize the SentenceTransformer model for generating sentence embeddings
-        # This model will be used to encode individual sentences in a paragraph
-        super(ParagraphTransformer, self).__init__()
-        
-        self.embedding = SentenceTransformer(model_args.model_name_or_path, device )
-        
-        if model_args.model_name_or_path == 'BAAI/bge-m3' or model_args.dimension == 1024:
-            self.linear = nn.Linear(1024, 768)  # Add a linear layer to reduce the last dimension
-        
-        self.linear = nn.Linear(768, 768)  # Add a linear layer to reduce the last dimension
-
-         
-        self.LayerNorm = nn.LayerNorm((768,), eps=1e-05, elementwise_affine=True)
-        self.dropout = nn.Dropout(p=0.1, inplace=False)
-        self.avg_pooling =  nn.AdaptiveAvgPool1d(1)
+class EmbeddingModel(nn.Module):
+    def __init__(self, model_name):
+        super(EmbeddingModel, self).__init__()
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(model_name)
     
-    # @property
-    # def device(self):
-    #     return self.device
+    def forward(self, texts, max_length=None):
+        inputs = self.tokenizer(texts, padding=True, truncation=True, max_length=max_length, return_tensors="pt")
+        inputs = {key: val.to(self.model.device) for key, val in inputs.items()}
+        with torch.no_grad():  # Ensure no gradients are computed for this step
+            outputs = self.model(**inputs)
+        return outputs.last_hidden_state
 
-    def new_forward(self, features):
-        """
-        Forward pass method for the ParagraphTransformer.
+class ParagraphTransformer(nn.Module):
+    def __init__(self, model_args):
+        super(ParagraphTransformer, self).__init__()
+        self.device1 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.embedding = EmbeddingModel(model_args.model_name_or_path).to(self.device1)
         
-        Args:
-        - features: A list of sentences forming a paragraph
+        self.embedding_dim = 768  # Assuming 768 as the embedding dimension
+        self.linear = nn.Linear(self.embedding_dim, 768).to(self.device1)
+        self.LayerNorm = nn.LayerNorm(768).to(self.device1)
+        self.dropout = nn.Dropout(p=0.1).to(self.device1)
+        self.avg_pooling = nn.AdaptiveAvgPool1d(1).to(self.device1)
+
+    def new_forward(self, features_list):
+        # Flatten the list of lists into a single list of sentences
+        flattened_features = [sentence for sublist in features_list for sentence in sublist]
+
+        # Get embeddings for all sentences at once
+        embeddings = self.embedding(flattened_features)
+        embeddings = embeddings.to(self.device1)
+        embeddings.requires_grad_()
+
+        # Transpose and apply average pooling
+        embeddings = embeddings.transpose(1, 2)  # Shape: [total_sentences, hidden_size, sequence_length]
+        pooled_output = self.avg_pooling(embeddings)  # Shape: [total_sentences, hidden_size, 1]
+        pooled_output = pooled_output.squeeze(dim=-1)  # Shape: [total_sentences, hidden_size]
+
+        # Apply linear transformation, normalization, and dropout
+        out = self.linear(pooled_output)  # Shape: [total_sentences, 768]
+        out = self.LayerNorm(out)  # Shape: [total_sentences, 768]
+        out = self.dropout(out)  # Shape: [total_sentences, 768]
+
+        # Now reshape and reduce to [n, 768] by averaging each sublist
+        sentence_counts = [len(sublist) for sublist in features_list]  # Number of sentences in each sublist
+        reshaped_out = torch.split(out, sentence_counts)  # Split based on the sentence counts
+        final_output = torch.stack([sublist.mean(dim=0) for sublist in reshaped_out])  # Shape: [n, 768]
+
+        return final_output.to(self.device1)
+
+
+
+
+
+# class DocumentTransformer(SentenceTransformer):
+#     def __init__(self, ParaEmbedding = None):
+
+#         super(DocumentTransformer, self).__init__()
         
-        Returns:
-        - out: Encoded representation of the paragraph
-        """
-        # Perform the forward pass through the original model
-        out = self.embedding.encode(features)
-        #out = self.encode(features)
-        #out = super(CustomSentenceTransformer, self).forward(features)
-        try:
-            out = self.LayerNorm(torch.Tensor(out).to(device))
-        except:
-            out = self.LayerNorm(torch.Tensor(out).to('cpu'))
-        out = self.dropout(out)
-        # Convert to torch and apply average pooling
-        out = torch.Tensor(out).unsqueeze(0).transpose(1, 2)
+
+#         self.ParaEmbedding = ParaEmbedding 
+#     def new_forward(self, document: list[list[str]], passError = False):
+#         tensors = []
+#         for paragraph in tqdm.tqdm(document, desc= "Embedding Document: "):
+#             embedding = self.ParaEmbedding.new_forward(paragraph, notice= False, passError= passError)
+#             if embedding is not None:
+#                 tensors.append(embedding)
+
+#         # Concatenate them along the first dimension
+#         merged_tensor = torch.cat(tensors, dim=0)
+
+#         # Verify the new shape
+#         print("Shape of document_embeddings: ", merged_tensor.shape)
         
-        # Apply average pooling
-        out = self.avg_pooling(out).squeeze()  # Apply 1D avg pooling and squeeze
-        return out.to(device)
-
-
-
-class DocumentTransformer(SentenceTransformer):
-    def __init__(self, ParaEmbedding = None):
-
-        super(DocumentTransformer, self).__init__()
-        
-
-        self.ParaEmbedding = ParaEmbedding 
-    def new_forward(self, document: list[list[str]], passError = False):
-        tensors = []
-        for paragraph in tqdm.tqdm(document, desc= "Embedding Document: "):
-            embedding = self.ParaEmbedding.new_forward(paragraph, notice= False, passError= passError)
-            if embedding is not None:
-                tensors.append(embedding)
-
-        # Concatenate them along the first dimension
-        merged_tensor = torch.cat(tensors, dim=0)
-
-        # Verify the new shape
-        print("Shape of document_embeddings: ", merged_tensor.shape)
-        
-        return merged_tensor
+#         return merged_tensor
