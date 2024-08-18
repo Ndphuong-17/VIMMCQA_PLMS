@@ -204,7 +204,7 @@ def main():
         print('Testing...')
         logger.info("*** Testing ***")
         predictions_tensor = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
-        print(predictions_tensor.shape)
+        print(predictions_tensor)
         predictions_tensor = torch.tensor(predictions_tensor)
         print(predictions_tensor.shape)
         # Test results
