@@ -73,7 +73,7 @@ def main():
         num_train_epochs=args.num_train_epochs,
         eval_strategy="epoch",
         logging_dir= os.path.join(args.output_dir, "logs"),
-        fp16=True,  # Enable mixed precision
+        fp16=False,  # Enable mixed precision
         eval_accumulation_steps=10,  # Accumulate gradients over 10 steps during evaluation
 
     )
@@ -211,17 +211,21 @@ def main():
             print(f"Processing batch {i+1}/{num_batches}")
             batch = dataset['test'].select(range(i * batch_size, min((i + 1) * batch_size, len(dataset['test']))))
             
+            torch.cuda.synchronize()
+
+            # Add a try-except block to catch and log errors during testing
             try:
                 with torch.no_grad():
                     predictions = trainer.predict(batch, metric_key_prefix="predict").predictions
                     all_predictions.extend(predictions)
-            except:
-                print(batch)
+            except RuntimeError as e:
+                logger.error(f"Runtime error during prediction: {str(e)}")
+                raise  # Re-raise the exception after logging
+
+            torch.cuda.synchronize()
             
             # Clear GPU cache to free up memory
             torch.cuda.empty_cache()
-            with torch.no_grad():
-                predictions = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
 
         print("Testing process finished")
 
