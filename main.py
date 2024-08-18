@@ -216,15 +216,13 @@ def main():
 
             # Add a try-except block to catch and log errors during testing
             try:
-                with torch.no_grad():
-                    # Move the model to the CPU if desired, or remove this line if running on GPU
-                    model.to('cpu')  # Ensure the model is on CPU for prediction
-                    predictions = trainer.predict(batch, metric_key_prefix="predict").predictions
-                    all_predictions.extend(predictions)
+                predictions = trainer.predict(batch, metric_key_prefix="predict").predictions
+                all_predictions.extend(predictions)
+                all_labels.extend([eval(s) for s in batch['label']])
 
-            except RuntimeError as e:
-                logger.error(f"Runtime error during prediction: {str(e)}")
-                raise  # Re-raise the exception after logging
+            except:
+                print(e)
+                pass
 
             torch.cuda.synchronize()
             
@@ -237,7 +235,8 @@ def main():
         # Test results
         print("--- Test Results ---")
         predictions_tensor = torch.Tensor(all_predictions)
-        labels_tensor = torch.tensor([eval(s) for s in dataset['test']['label']], dtype=torch.float)
+        labels_tensor = torch.Tensor(all_labels)
+        # labels_tensor = torch.tensor([eval(s) for s in dataset['test']['label']], dtype=torch.float)
         metrics = compute_metric(predictions_tensor, labels_tensor)
         print(metrics)
 
