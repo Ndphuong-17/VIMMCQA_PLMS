@@ -38,6 +38,7 @@ def parse_args():
     parser.add_argument('--per_device_train_batch_size', type=int, default=256, help="Batch size for training")
     parser.add_argument('--num_train_epochs', type=int, default=3, help="Number of training epochs")
     parser.add_argument('--threshold', type=float, default=0.5, help="Threshold for labeling")
+    parser.add_argument('--max_length', type=int, default=512, help="Label smoothing")
 
     parser.add_argument('--num_choices', type=int, default=4, help="Number of choices for the task")
     parser.add_argument('--test_index', type=int, default=0, help="Index of the test set")
@@ -71,6 +72,8 @@ def main():
         num_train_epochs=args.num_train_epochs,
         eval_strategy="epoch",
         logging_dir= os.path.join(args.output_dir, "logs"),
+        fp16=True,  # Enable mixed precision
+
     )
 
     # Set seed before initializing model
@@ -174,10 +177,17 @@ def main():
         train_result = trainer.train()
         print(train_result)
         print("Training process finished")
-        
+
         # Save the model, tokenizer, and training arguments
+        if isinstance(model, torch.nn.DataParallel):
+            model = model.module
+
         model.save_pretrained(args.output_dir)
-        trainer.save_state()
+        try:
+            trainer.save_state()
+        except:
+            print("Failed to save training state")
+            pass
 
     # Evaluation
     if args.validation and args.validation_file is not None:
@@ -191,7 +201,9 @@ def main():
     if args.test and args.test_file is not None:
         print('Testing...')
         logger.info("*** Testing ***")
-        predictions = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
+        with torch.no_grad():
+            predictions = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
+
         print("Testing process finished")
 
         # Test results
@@ -220,9 +232,17 @@ def main():
             json.dump(data, f, indent=4)
         print("Test data saved to results.json")
         
+    
     # Save the model, tokenizer, and training arguments
+    if isinstance(model, torch.nn.DataParallel):
+        model = model.module
+
     model.save_pretrained(args.output_dir)
-    trainer.save_state()
+    try:
+        trainer.save_state()
+    except:
+        print("Failed to save training state")
+        pass
 
 
 if __name__ == "__main__":

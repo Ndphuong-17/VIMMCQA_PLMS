@@ -150,8 +150,7 @@ class DataCollator:
 
         ques_opt_embedding = self.embedding.new_forward(ques_options)
         contexts_embedding = self.embedding.new_forward(contexts)
-        # print(f"ques_opt_embedding: ({ques_opt_embedding.shape}) {ques_opt_embedding.requires_grad}")
-        # print(f"contexts          : ({contexts_embedding.shape}) {contexts_embedding.requires_grad}")
+        
         # should return [n, 768] and True
         return {
             'ques_opt_embedding': ques_opt_embedding, 

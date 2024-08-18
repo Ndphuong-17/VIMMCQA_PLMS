@@ -1,4 +1,3 @@
-from sentence_transformers import SentenceTransformer
 import torch.nn as nn
 import torch
 import tqdm
@@ -9,13 +8,14 @@ import torch.nn as nn
 from transformers import AutoTokenizer, AutoModel
 
 class EmbeddingModel(nn.Module):
-    def __init__(self, model_name):
+    def __init__(self, model_args):
         super(EmbeddingModel, self).__init__()
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
+        self.model = AutoModel.from_pretrained(model_args.model_name_or_path)
+        self.max_length = model_args.max_length
     
-    def forward(self, texts, max_length=None):
-        inputs = self.tokenizer(texts, padding=True, truncation=True, max_length=max_length, return_tensors="pt")
+    def forward(self, texts):
+        inputs = self.tokenizer(texts, padding=True, truncation=True, max_length=self.max_length, return_tensors="pt")
         inputs = {key: val.to(self.model.device) for key, val in inputs.items()}
         with torch.no_grad():  # Ensure no gradients are computed for this step
             outputs = self.model(**inputs)
@@ -25,7 +25,7 @@ class ParagraphTransformer(nn.Module):
     def __init__(self, model_args):
         super(ParagraphTransformer, self).__init__()
         self.device1 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.embedding = EmbeddingModel(model_args.model_name_or_path).to(self.device1)
+        self.embedding = EmbeddingModel(model_args).to(self.device1)
         
         self.embedding_dim = 768  # Assuming 768 as the embedding dimension
         self.linear = nn.Linear(self.embedding_dim, 768).to(self.device1)
@@ -58,29 +58,3 @@ class ParagraphTransformer(nn.Module):
         final_output = torch.stack([sublist.mean(dim=0) for sublist in reshaped_out])  # Shape: [n, 768]
 
         return final_output.to(self.device1)
-
-
-
-
-
-# class DocumentTransformer(SentenceTransformer):
-#     def __init__(self, ParaEmbedding = None):
-
-#         super(DocumentTransformer, self).__init__()
-        
-
-#         self.ParaEmbedding = ParaEmbedding 
-#     def new_forward(self, document: list[list[str]], passError = False):
-#         tensors = []
-#         for paragraph in tqdm.tqdm(document, desc= "Embedding Document: "):
-#             embedding = self.ParaEmbedding.new_forward(paragraph, notice= False, passError= passError)
-#             if embedding is not None:
-#                 tensors.append(embedding)
-
-#         # Concatenate them along the first dimension
-#         merged_tensor = torch.cat(tensors, dim=0)
-
-#         # Verify the new shape
-#         print("Shape of document_embeddings: ", merged_tensor.shape)
-        
-#         return merged_tensor
