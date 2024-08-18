@@ -160,7 +160,6 @@ class DataCollator:
 
     
 
-
 def compute_metric(logits, tensor_label):
     """
     Compute metrics for multi-label classification.
@@ -200,12 +199,8 @@ def compute_metric(logits, tensor_label):
     return metrics
 
 def compute_metrics(p):
-    logits = p.predicted_label
-    labels = p.label
-    
-    # # Convert to tensors
-    # logits = torch.tensor(logits, dtype=torch.float)
-    # labels = torch.tensor(labels, dtype=torch.float)
+    logits = p.predictions
+    labels = p.label_ids
     
     # Compute metrics
-    return compute_metric(logits, labels)
+    return compute_metric(torch.tensor(logits, dtype=torch.float), torch.tensor(labels, dtype=torch.float))

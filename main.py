@@ -203,42 +203,12 @@ def main():
     if args.test and args.test_file is not None:
         print('Testing...')
         logger.info("*** Testing ***")
-        batch_size = 1 # args.per_device_train_batch_size // 2
-        num_batches = math.ceil(len(dataset['test']) / batch_size)
-        all_predictions = []
-        all_labels = []
-        
-        for i in range(num_batches):
-            print(f"Processing batch {i+1}/{num_batches}")
-            batch = dataset['test'].select(range(i * batch_size, min((i + 1) * batch_size, len(dataset['test']))))
-            
-            torch.cuda.synchronize()
 
-            # Add a try-except block to catch and log errors during testing
-            try:
-                predictions = trainer.predict(batch, metric_key_prefix="predict").predictions
-                all_predictions.extend(predictions)
-                all_labels.extend([eval(s) for s in batch['label']])
-
-            except:
-                print(batch[0])
-                pass
-                torch.cuda.synchronize()
-                # Clear GPU cache to free up memory
-                torch.cuda.empty_cache()
-
-            torch.cuda.synchronize()
-            # Clear GPU cache to free up memory
-            torch.cuda.empty_cache()
-
-        print("Testing process finished")
-
-
+        predictions_tensor = torch.tensor(trainer.predict(dataset['test'], metric_key_prefix="predict").predictions)
         # Test results
         print("--- Test Results ---")
-        predictions_tensor = torch.Tensor(all_predictions)
-        labels_tensor = torch.Tensor(all_labels)
-        # labels_tensor = torch.tensor([eval(s) for s in dataset['test']['label']], dtype=torch.float)
+        
+        labels_tensor = torch.tensor([eval(s) for s in dataset['test']['label']], dtype=torch.float)
         metrics = compute_metric(predictions_tensor, labels_tensor)
         print(metrics)
 
@@ -260,7 +230,6 @@ def main():
         with open(os.path.join(args.output_dir, 'results.json'), 'w') as f:
             json.dump(data, f, indent=4)
         print("Test data saved to results.json")
-        
     
     # Save the model, tokenizer, and training arguments
     if isinstance(model, torch.nn.DataParallel):
