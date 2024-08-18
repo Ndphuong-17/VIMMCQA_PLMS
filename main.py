@@ -216,11 +216,11 @@ def main():
 
             # Add a try-except block to catch and log errors during testing
             try:
-                # with torch.no_grad():
-                #     predictions = trainer.predict(batch, metric_key_prefix="predict").predictions
-                #     all_predictions.extend(predictions)
-                predictions = trainer.predict(batch.to('cpu'), metric_key_prefix="predict").predictions
-                all_predictions.extend(predictions)
+                with torch.no_grad():
+                    # Move the model to the CPU if desired, or remove this line if running on GPU
+                    model.to('cpu')  # Ensure the model is on CPU for prediction
+                    predictions = trainer.predict(batch, metric_key_prefix="predict").predictions
+                    all_predictions.extend(predictions)
 
             except RuntimeError as e:
                 logger.error(f"Runtime error during prediction: {str(e)}")
