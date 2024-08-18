@@ -221,8 +221,11 @@ def main():
                 all_labels.extend([eval(s) for s in batch['label']])
 
             except:
-                print(batch)
+                print(batch[0])
                 pass
+                torch.cuda.synchronize()
+                # Clear GPU cache to free up memory
+                torch.cuda.empty_cache()
 
             torch.cuda.synchronize()
             # Clear GPU cache to free up memory
