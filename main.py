@@ -8,6 +8,7 @@ from datasets import load_dataset
 from src.Model import VIMMCQA, DataCollator, compute_metrics, compute_metric
 import torch.nn as nn
 import pandas as pd
+import maths
 
 
 # Device configuration
@@ -202,9 +203,8 @@ def main():
     if args.test and args.test_file is not None:
         print('Testing...')
         logger.info("*** Testing ***")
-        batch_size = args.per_device_train_batch_size / 2
-        num_batches = len(dataset['test']) // batch_size + (1 if len(dataset['test']) % batch_size != 0 else 0)
-        all_predictions = []
+        batch_size = args.per_device_train_batch_size // 2
+        num_batches = math.ceil(len(dataset['test']) / batch_size)
         
         for i in range(num_batches):
             print(f"Processing batch {i+1}/{num_batches}")
