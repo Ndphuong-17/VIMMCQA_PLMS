@@ -203,8 +203,7 @@ def main():
     if args.test and args.test_file is not None:
         print('Testing...')
         logger.info("*** Testing ***")
-        predictions_tensor = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
-        print(predictions_tensor)
+        predictions_tensor = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions[0]
         predictions_tensor = torch.tensor(predictions_tensor)
         print(predictions_tensor.shape)
         # Test results
