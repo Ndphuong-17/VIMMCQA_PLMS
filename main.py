@@ -202,7 +202,7 @@ def main():
     if args.test and args.test_file is not None:
         print('Testing...')
         logger.info("*** Testing ***")
-        batch_size = args.per_device_train_batch_size
+        batch_size = args.per_device_train_batch_size / 2
         num_batches = len(dataset['test']) // batch_size + (1 if len(dataset['test']) % batch_size != 0 else 0)
         all_predictions = []
         
@@ -210,9 +210,12 @@ def main():
             print(f"Processing batch {i+1}/{num_batches}")
             batch = dataset['test'].select(range(i * batch_size, min((i + 1) * batch_size, len(dataset['test']))))
             
-            with torch.no_grad():
-                predictions = trainer.predict(batch, metric_key_prefix="predict").predictions
-                all_predictions.extend(predictions)
+            try:
+                with torch.no_grad():
+                    predictions = trainer.predict(batch, metric_key_prefix="predict").predictions
+                    all_predictions.extend(predictions)
+            except:
+                print(batch)
             
             # Clear GPU cache to free up memory
             torch.cuda.empty_cache()
