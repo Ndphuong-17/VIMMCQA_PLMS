@@ -203,9 +203,10 @@ def main():
     if args.test and args.test_file is not None:
         print('Testing...')
         logger.info("*** Testing ***")
-        batch_size = args.per_device_train_batch_size // 2
+        batch_size = 1 # args.per_device_train_batch_size // 2
         num_batches = math.ceil(len(dataset['test']) / batch_size)
         all_predictions = []
+        all_labels = []
         
         for i in range(num_batches):
             print(f"Processing batch {i+1}/{num_batches}")
@@ -215,9 +216,12 @@ def main():
 
             # Add a try-except block to catch and log errors during testing
             try:
-                with torch.no_grad():
-                    predictions = trainer.predict(batch, metric_key_prefix="predict").predictions
-                    all_predictions.extend(predictions)
+                # with torch.no_grad():
+                #     predictions = trainer.predict(batch, metric_key_prefix="predict").predictions
+                #     all_predictions.extend(predictions)
+                predictions = trainer.predict(batch.to('cpu'), metric_key_prefix="predict").predictions
+                all_predictions.extend(predictions)
+
             except RuntimeError as e:
                 logger.error(f"Runtime error during prediction: {str(e)}")
                 raise  # Re-raise the exception after logging
