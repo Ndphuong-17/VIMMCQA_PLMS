@@ -73,6 +73,7 @@ def main():
         eval_strategy="epoch",
         logging_dir= os.path.join(args.output_dir, "logs"),
         fp16=True,  # Enable mixed precision
+        eval_accumulation_steps=10,  # Accumulate gradients over 10 steps during evaluation
 
     )
 
@@ -201,14 +202,29 @@ def main():
     if args.test and args.test_file is not None:
         print('Testing...')
         logger.info("*** Testing ***")
-        with torch.no_grad():
-            predictions = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
+        batch_size = args.per_device_train_batch_size
+        num_batches = len(dataset['test']) // batch_size + (1 if len(dataset['test']) % batch_size != 0 else 0)
+        all_predictions = []
+        
+        for i in range(num_batches):
+            print(f"Processing batch {i+1}/{num_batches}")
+            batch = dataset['test'].select(range(i * batch_size, min((i + 1) * batch_size, len(dataset['test']))))
+            
+            with torch.no_grad():
+                predictions = trainer.predict(batch, metric_key_prefix="predict").predictions
+                all_predictions.extend(predictions)
+            
+            # Clear GPU cache to free up memory
+            torch.cuda.empty_cache()
+            with torch.no_grad():
+                predictions = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
 
         print("Testing process finished")
 
+
         # Test results
         print("--- Test Results ---")
-        predictions_tensor = torch.Tensor(predictions[1])
+        predictions_tensor = torch.Tensor(all_predictions)
         labels_tensor = torch.tensor([eval(s) for s in dataset['test']['label']], dtype=torch.float)
         metrics = compute_metric(predictions_tensor, labels_tensor)
         print(metrics)

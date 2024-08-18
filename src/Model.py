@@ -150,7 +150,7 @@ class DataCollator:
 
         ques_opt_embedding = self.embedding.new_forward(ques_options)
         contexts_embedding = self.embedding.new_forward(contexts)
-        
+
         # should return [n, 768] and True
         return {
             'ques_opt_embedding': ques_opt_embedding, 
@@ -200,12 +200,12 @@ def compute_metric(logits, tensor_label):
     return metrics
 
 def compute_metrics(p):
-    logits = p.predictions
-    labels = p.label_ids
+    logits = p.predicted_label
+    labels = p.label
     
-    # Convert to tensors
-    logits = torch.tensor(logits, dtype=torch.float)
-    labels = torch.tensor(labels, dtype=torch.float)
+    # # Convert to tensors
+    # logits = torch.tensor(logits, dtype=torch.float)
+    # labels = torch.tensor(labels, dtype=torch.float)
     
     # Compute metrics
     return compute_metric(logits, labels)
