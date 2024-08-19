@@ -77,8 +77,8 @@ def covert_csv(df):
             _context = row['context']
         
         for option in ['A', 'B', 'C', 'D']:
+            _context = re.sub('\s+', ' ', re.sub(r'\n+', ' ', _context)).strip()
             reshaped_data.append({
-                
                 'wseg_context': _context,
                 'ques_opt': row['question'] + row[f'{option}'],
                 'label': 1 if option in row['result'] else 0,
@@ -100,10 +100,10 @@ def covert_csv_1(df):
         except:
             _context = row['context']
             
-        reshaped_data.append(
-            {
-            'context': _context,
-            'ques_opt': row['question'] + ' '.join([row[f'{option}'] for option  in ['A', 'B', 'C', 'D']]),
+        _context = re.sub('\s+', ' ', re.sub(r'\n+', ' ', _context)).strip()
+        reshaped_data.append({
+            'wseg_context': _context,
+            'ques_opt': row['question'] + ' '.join([str(row[f'{option}']) for option  in ['A', 'B', 'C', 'D']]),
             'label': [1 if option in row['result'] else 0 for option  in ['A', 'B', 'C', 'D'] ],
         }
         )
