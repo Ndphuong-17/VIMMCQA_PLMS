@@ -35,7 +35,7 @@ def parse_args():
     parser.add_argument('--model_name_or_path', type=str, default='ndpphuong/medical_vietnamese_bi_encoder_finetune_simcse_part_2', help="Model name or path")
 
     parser.add_argument('--dimension', type=int, default=768, help="Dimension of the model, based on the model_name_or_path")
-    parser.add_argument('--per_device_train_batch_size', type=int, default=256, help="Batch size for training")
+    parser.add_argument('--per_device_train_batch_size', type=int, default=16, help="Batch size for training")
     parser.add_argument('--num_train_epochs', type=int, default=3, help="Number of training epochs")
     parser.add_argument('--threshold', type=float, default=0.5, help="Threshold for labeling")
     parser.add_argument('--max_length', type=int, default=512, help="Label smoothing")
