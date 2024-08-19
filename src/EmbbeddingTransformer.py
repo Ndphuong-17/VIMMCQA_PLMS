@@ -13,13 +13,18 @@ class EmbeddingModel(nn.Module):
         self.tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
         self.model = AutoModel.from_pretrained(model_args.model_name_or_path)
         self.max_length = model_args.max_length
+        self.avg_pooling = nn.AdaptiveAvgPool1d(1)
     
     def forward(self, texts):
-        inputs = self.tokenizer(texts, padding=True, truncation=True, max_length=self.max_length, return_tensors="pt")
+        inputs = self.tokenizer(texts, padding=True, truncation=True, max_length=256, return_tensors="pt")
         inputs = {key: val.to(self.model.device) for key, val in inputs.items()}
         with torch.no_grad():  # Ensure no gradients are computed for this step
             outputs = self.model(**inputs)
-        return outputs.last_hidden_state
+
+        embeddings = outputs.last_hidden_state.transpose(1, 2)
+        pooled_output = self.avg_pooling(embeddings)  # Shape: [total_sentences, hidden_size, 1]
+        pooled_output = pooled_output.squeeze(dim=-1)  # Shape: [total_sentences, hidden_size]
+        return pooled_output #[n, 768]
 
 class ParagraphTransformer(nn.Module):
     def __init__(self, model_args):
@@ -27,8 +32,7 @@ class ParagraphTransformer(nn.Module):
         self.device1 = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.embedding = EmbeddingModel(model_args).to(self.device1)
         
-        self.embedding_dim = 768  # Assuming 768 as the embedding dimension
-        self.linear = nn.Linear(self.embedding_dim, 768).to(self.device1)
+        self.linear = nn.Linear(model_args.dimension, 768).to(self.device1)
         self.LayerNorm = nn.LayerNorm(768).to(self.device1)
         self.dropout = nn.Dropout(p=0.1).to(self.device1)
         self.avg_pooling = nn.AdaptiveAvgPool1d(1).to(self.device1)
@@ -38,17 +42,12 @@ class ParagraphTransformer(nn.Module):
         flattened_features = [sentence for sublist in features_list for sentence in sublist]
 
         # Get embeddings for all sentences at once
-        embeddings = self.embedding(flattened_features)
+        embeddings = self.embedding(flattened_features) # [total_sentences, 768]
         embeddings = embeddings.to(self.device1)
         embeddings.requires_grad_()
 
-        # Transpose and apply average pooling
-        embeddings = embeddings.transpose(1, 2)  # Shape: [total_sentences, hidden_size, sequence_length]
-        pooled_output = self.avg_pooling(embeddings)  # Shape: [total_sentences, hidden_size, 1]
-        pooled_output = pooled_output.squeeze(dim=-1)  # Shape: [total_sentences, hidden_size]
-
         # Apply linear transformation, normalization, and dropout
-        out = self.linear(pooled_output)  # Shape: [total_sentences, 768]
+        out = self.linear(embeddings)  # Shape: [total_sentences, 768]
         out = self.LayerNorm(out)  # Shape: [total_sentences, 768]
         out = self.dropout(out)  # Shape: [total_sentences, 768]
 

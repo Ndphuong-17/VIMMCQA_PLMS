@@ -27,9 +27,8 @@ def parse_args():
     parser.add_argument('--old_wseg_corpus_file', type=str, default='Corpus/wseg_corpus.txt', help="Path to the wseg documentary corpus txt file")
 
     parser.add_argument('--task', type=str, default='VIMMCQA', 
-    help="Default VIMMCQA Just MCQA task not supported retrieving. If you want to retrieve relevant context information, use full_VIMMCQA"
+    help="Default VIMMCQA Just MCQA task not supported retrieving. If you want to retrieve relevant context information, use full_VIMMCQA. If set No_ParagraphEmbedding will be embedded in the normal way."
     )
-
     parser.add_argument('--output_dir', type=str, default='output', help="Directory for saving outputs and model")
 
     parser.add_argument('--model_directory', type=str, default=None, help="Directory to load the model")
@@ -58,6 +57,7 @@ def main():
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
 
+    print("task: ", args.task)
     print("model_name_or_path: ", args.model_name_or_path)
     print("dimension: ", args.dimension)
     print("per_device_train_batch_size: ", args.per_device_train_batch_size)
@@ -203,17 +203,18 @@ def main():
     if args.test and args.test_file is not None:
         print('Testing...')
         logger.info("*** Testing ***")
-        predictions_tensor = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions[0]
-        predictions_tensor = torch.tensor(predictions_tensor)
+        predictions = trainer.predict(dataset['test'], metric_key_prefix="predict").predictions
+        predictions_tensor = torch.tensor(predictions[2])
         print(predictions_tensor.shape)
         # Test results
         print("--- Test Results ---")
         
-        labels_tensor = torch.tensor([eval(s) for s in dataset['test']['label']], dtype=torch.float)
+        labels_tensor = predictions[1]
         metrics = compute_metric(predictions_tensor, labels_tensor)
         print(metrics)
 
         # Convert tensors to lists
+        logits_list = predictions[0].tolist()
         predictions_list = predictions_tensor.tolist()
         labels_list = labels_tensor.tolist()
 
@@ -221,17 +222,18 @@ def main():
         data = [
             {
                 "id": i,
+                'logit': logits_list,
                 "pred": pred,
                 "label": label
             }
-            for i, (pred, label) in enumerate(zip(predictions_list, labels_list))
+            for i, (pred, label, logit) in enumerate(zip(predictions_list, labels_list, logits_list))
         ]
 
         # Save data to JSON file
         with open(os.path.join(args.output_dir, 'results.json'), 'w') as f:
             json.dump(data, f, indent=4)
         print("Test data saved to results.json")
-    
+
     # Save the model, tokenizer, and training arguments
     if isinstance(model, torch.nn.DataParallel):
         model = model.module

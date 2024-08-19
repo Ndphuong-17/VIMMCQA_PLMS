@@ -2,16 +2,16 @@ import torch
 import torch.nn as nn
 from src.Reader import mcqa_Clasification
 from src.preprocessing import preprocessing_para
-from src.EmbbeddingTransformer import  ParagraphTransformer
+from src.EmbbeddingTransformer import  ParagraphTransformer, EmbeddingModel
 from src.Retriever import Retrieval 
 from sklearn.metrics import accuracy_score, recall_score, f1_score, precision_score
 import torch
 import os
-import re
-from string import punctuation
+import numpy as np
 
 
 device = device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 
 class VIMMCQA(torch.nn.Module):
@@ -66,12 +66,10 @@ class VIMMCQA(torch.nn.Module):
         #print(data_dict)
         # print("--- VIMMCQA ---")
 
-        contexts_embedding, ques_opt_embedding, tensor_label = data_dict.values()
 
-        logits = self.mcqa.new_forward(contexts_vector = contexts_embedding,
-                                question_options_vector = ques_opt_embedding)
+        outputs = self.mcqa(**data_dict)
         # print(f"logits: {logits.shape}, {logits.requires_grad}") # should be return [n, num_options] and True
-        probabilities = torch.sigmoid(logits)
+        probabilities = torch.sigmoid(outputs['logits'])
         predicted_labels = (probabilities > self.threshold).float()
 
         # print(f"predicted_labels: {predicted_labels.shape}, {predicted_labels.requires_grad}") # should be return [n, num_options] and True
@@ -79,19 +77,14 @@ class VIMMCQA(torch.nn.Module):
 
         # Compute the loss using BCEWithLogitsLoss
         loss_fn = nn.BCEWithLogitsLoss()
-        loss = loss_fn(logits, tensor_label)
+        loss = loss_fn(outputs['logits'], outputs['label'])
 
-        # print(f"predicted_label: {predicted_labels.shape}, {predicted_labels.requires_grad} \nlabels: {tensor_label.shape}, {tensor_label.requires_grad}")
+        outputs['predictions'] = predicted_labels
+        outputs['loss'] = loss
 
-        print(f"predicted_labels: {predicted_labels} \n logits: {logits} \n probabilities: {probabilities} \nlabels: {tensor_label}")
-
-
-        return {
-            'predicted_label': predicted_labels,
-            'label': tensor_label,
-            'loss': loss
-        }
+        return outputs
     
+
 
 
 class DataCollator:
@@ -106,6 +99,8 @@ class DataCollator:
         # Initialize only what is needed for the task
         if self.task == 'VIMMCQA':
             self.embedding = ParagraphTransformer(model_args)
+        elif self.task == 'No_ParagraphEmbedding':
+            self.embedding = EmbeddingModel(model_args)
         elif self.task == 'full_VIMMCQA':
             self.retrieval = Retrieval(model_args=model_args, corpus=corpus)
     
@@ -125,7 +120,8 @@ class DataCollator:
         if self.task == 'full_VIMMCQA':
             raise Exception('This task can run now, will be update soon')
             return self.full_VIMMCQA(raw_batch_dict)
-        
+        elif self.task == 'No_ParagraphEmbedding':
+            return self.normal_VIMMCQA(raw_batch_dict)
         elif self.task == 'VIMMCQA':
             try:
                 # print("Containing context in dataset")
@@ -140,56 +136,81 @@ class DataCollator:
     def VIMMCQA(self, raw_batch_dict):
         # print("--- raw_batch_dict --- ", len(raw_batch_dict))
         # print(raw_batch_dict[0].keys())
-
-        ques_options = [preprocessing_para(data['ques_opt']) for data in raw_batch_dict]
-        contexts = [preprocessing_para(data['context']) for data in raw_batch_dict]
-        labels = [data['label'] for data in raw_batch_dict]
         
-        # Convert labels to numeric values
-        numeric_labels = [list(map(int, label.strip('[]').split(', '))) for label in labels]
-        # Convert to tensor with requires_grad=True
+        ques_options = [[[item for item in preprocessing_para(data['question'] +'. ' + data[option]) if item != 'nan'] for option in ['A', 'B', 'C', 'D']]  for data in raw_batch_dict]
+        contexts = [[[item for item in preprocessing_para(data['context']) if item != 'nan']] for data in raw_batch_dict]
+        # alls = [[[item for item in preprocessing_para(data['question'] +'. ' + data[option] + '. ' + data['context']) 
+        #           if item != 'nan'] 
+        #           for option in ['A', 'B', 'C', 'D']]  for data in raw_batch_dict]
+        
+        print(f"ques_options: {len(ques_options)} * {len(ques_options[0])}")
+        print(f"contexts: {len(contexts)} * {len(contexts[0])}")
+        
+        numeric_labels = [[1 if option in data['result'] else 0 for option  in ['A', 'B', 'C', 'D']] for data in raw_batch_dict]
         tensor_label = torch.tensor(numeric_labels, dtype=torch.float32, device=device, requires_grad=True)
-        # print(tensor_label.requires_grad) # Should return True
+        print(tensor_label.requires_grad) # Should return True
 
-        ques_opt_embedding = self.embedding.new_forward(ques_options)
-        contexts_embedding = self.embedding.new_forward(contexts)
+        # embedding
+        for index, paragraph in enumerate([ques_options, contexts]):
+            flattened = [sentence for sublist in paragraph for sentence in sublist]
+            embedding = self.embedding.new_forward(flattened)
+
+            if index == 0:
+                ques_opt_embedding = embedding.reshape(-1, 4, 768)
+            else:
+                contexts_embedding = embedding.reshape(-1, 1, 768)
 
         # should return [n, 768] and True
         return {
-            'ques_opt_embedding': ques_opt_embedding, 
-            'contexts_embedding': contexts_embedding, 
-            'tensor_label': tensor_label
+            'ques_opt_embedding': ques_opt_embedding, # should return [n, 4, 768]
+            'contexts_embedding': contexts_embedding, # should return [n, 1, 768]
+            'tensor_label': tensor_label # should return [4, 768]
         }
+    
+    def normal_VIMMCQA(self, raw_batch_dict):
+        # print("--- raw_batch_dict --- ", len(raw_batch_dict))
+        # print(raw_batch_dict[0].keys())
+        
+        alls = [[[item for item in preprocessing_para(data['question'] +'. ' + data[option] + '. ' + data['context']) 
+                  if item != 'nan'] 
+                  for option in ['A', 'B', 'C', 'D']]  for data in raw_batch_dict]
+        alls = ['. '.join(para) for data in alls for para in data ] # n *4
+        embedding = self.embedding(alls) # [total_sentences*4, 768]
+        embedding = embedding.view(-1, 4, 768) # [total_sentences, 4, 768]
+        
+        
+        numeric_labels = [[1 if option in data['result'] else 0 for option  in ['A', 'B', 'C', 'D']] for data in raw_batch_dict]
+        tensor_label = torch.tensor(numeric_labels, dtype=torch.float32, device=device, requires_grad=True)
+        # print(tensor_label.requires_grad) # Should return True
+
+        # should return [n, 768] and True
+        return {
+            'ques_opt_embedding': embedding,  # should return [n, 4, 768]
+            'contexts_embedding': None, 
+            'tensor_label': tensor_label  # should return [4, 768]
+        }
+
 
     
 
-def compute_metric(logits, tensor_label):
+
+def compute_metric(pred, label):
     """
     Compute metrics for multi-label classification.
-
-    Args:
-        logits (Tensor): Raw model outputs of shape [batch_size, num_classes].
-        tensor_label (Tensor): One-hot encoded ground truth labels of shape [batch_size, num_classes].
 
     Returns:
         dict: A dictionary containing accuracy, recall, f1, mse, and precision.
     """
-    # Convert logits to probabilities
-    probabilities = torch.sigmoid(logits).cpu().detach().numpy()
-    
-    # Convert probabilities to binary predictions
-    predictions = (probabilities > 0.5).astype(int)
-
-    # Convert tensors to numpy arrays for scikit-learn metrics
-    y_true = tensor_label.cpu().detach().numpy()
-    y_pred = predictions
+    # Ensure the tensors are on the CPU and converted to numpy arrays
+    y_true = label.cpu().numpy() if isinstance(label, torch.Tensor) else label
+    y_pred = pred.cpu().numpy() if isinstance(pred, torch.Tensor) else pred
 
     # Compute metrics
     accuracy = accuracy_score(y_true, y_pred)
     recall = recall_score(y_true, y_pred, average='macro')  # Use 'macro' for multi-label classification
     f1 = f1_score(y_true, y_pred, average='macro')  # Use 'macro' for multi-label classification
     precision = precision_score(y_true, y_pred, average='macro')  # Use 'macro' for multi-label classification
-    mse = ((y_true - y_pred) ** 2).mean()
+    mse = np.mean((y_true - y_pred) ** 2)  # Mean Squared Error
 
     metrics = {
         'accuracy': accuracy,
@@ -202,6 +223,7 @@ def compute_metric(logits, tensor_label):
     return metrics
 
 def compute_metrics(p):
+    print(p)
     logits = p.predictions
     labels = p.label_ids
     
