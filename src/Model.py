@@ -143,8 +143,8 @@ class DataCollator:
         #           if item != 'nan'] 
         #           for option in ['A', 'B', 'C', 'D']]  for data in raw_batch_dict]
         
-        print(f"ques_options: {len(ques_options)} * {len(ques_options[0])}")
-        print(f"contexts: {len(contexts)} * {len(contexts[0])}")
+        # print(f"ques_options: {len(ques_options)} * {len(ques_options[0])}")
+        # print(f"contexts: {len(contexts)} * {len(contexts[0])}")
         
         numeric_labels = [[1 if option in data['result'] else 0 for option  in ['A', 'B', 'C', 'D']] for data in raw_batch_dict]
         tensor_label = torch.tensor(numeric_labels, dtype=torch.float32, device=device, requires_grad=True)
