@@ -83,7 +83,7 @@ class VIMMCQA(torch.nn.Module):
 
         # print(f"predicted_label: {predicted_labels.shape}, {predicted_labels.requires_grad} \nlabels: {tensor_label.shape}, {tensor_label.requires_grad}")
 
-        print(f"predicted_labels: {predicted_labels} \n probabilities: {probabilities} \nlabels: {tensor_label}")
+        print(f"predicted_labels: {predicted_labels} \n logits: {logits} \n probabilities: {probabilities} \nlabels: {tensor_label}")
 
 
         return {
