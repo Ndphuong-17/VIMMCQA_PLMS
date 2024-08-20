@@ -127,7 +127,7 @@ def main():
         raise KeyError(f"Did not set up for testing {args.test_index} (< 0) samples.")
 
 
-    if args.task == 'VIMMCQA':
+    if args.task == 'VIMMCQA' or args.task == 'No_ParagraphEmbedding':
         wseg_datas = None
 
     elif args.task == 'full_VIMMCQA':
