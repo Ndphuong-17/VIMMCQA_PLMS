@@ -105,7 +105,7 @@ for epoch in range(args.epochs):
         torch.cuda.empty_cache()
 
     # Average training loss and accuracy
-    train_loss /= total_train_samples
+    train_loss /= len(train_dataloader)
     train_acc /= total_train_samples
 
     model.eval()  # Evaluation
@@ -122,7 +122,7 @@ for epoch in range(args.epochs):
             total_val_samples += len(labels)
 
     # Average validation loss and accuracy
-    val_loss /= total_val_samples
+    val_loss /= len(val_dataloader)
     val_acc /= total_val_samples
 
     train_losses.append(train_loss)
