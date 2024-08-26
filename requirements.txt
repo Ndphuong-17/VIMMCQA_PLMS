@@ -1,0 +1,7 @@
+underthesea
+transformers
+datasets
+evaluate
+rank_bm25
+sentence-transformers
+py_vncorenlp
