@@ -1,4 +1,3 @@
-
 from dataset import CustomVIMMCQADataset
 from transformers import AutoModelForMultipleChoice, AutoTokenizer, AutoConfig
 from torch.utils.data import DataLoader
@@ -17,9 +16,9 @@ parser.add_argument('--val_csv', type=str, required=True)
 parser.add_argument('--test_csv', type=str, required=True)
 parser.add_argument('--batch_size', type=int, default = 16)
 parser.add_argument('--epochs', type=int, default = 20)
-parser.add_argument('--train_val_metric', type=str, default = 'train_val_metrics.json')
+parser.add_argument('--train_val_metric', type=str, default = 'train_val_metrics.pth')
 parser.add_argument('--checkpoint', type=str, default = 'checkpoints.pth')
-parser.add_argument('--result_output', type=str, default = 'results.json')
+parser.add_argument('--result_output', type=str, default = 'results.pth')
 
 args = parser.parse_args()
 
@@ -55,6 +54,7 @@ print("Loading Training Components")
 optimizer = torch.optim.Adam(params = model.parameters())
 criterion = nn.BCEWithLogitsLoss()
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3, verbose=True)
+scaler = torch.cuda.amp.GradScaler()
 
 # # Training and Eval
 print('================')
@@ -67,8 +67,13 @@ val_losses, val_accies = [], []
 train_losses, train_accies = [], []
 val_losses, val_accies = [], []
 
-for epoch in range(args.epochs):
+import torch
+from tqdm import tqdm
 
+train_losses, train_accies = [], []
+val_losses, val_accies = [], []
+
+for epoch in range(args.epochs):
     train_loss, val_loss = 0, 0
     train_acc, val_acc = 0, 0
     total_train_samples = 0
@@ -76,35 +81,49 @@ for epoch in range(args.epochs):
 
     model.train()  # Training
     for sample in tqdm(train_dataloader):
-        prediction = model(sample)
-        loss = criterion(prediction, sample['label'].float().to(device))
+        labels = sample['label'].float().to(device)
 
-        train_loss += loss.item()
-        train_acc += (prediction.round() == sample['label'].float().to(device)).sum().item()
-        total_train_samples += len(sample['label'])
+        optimizer.zero_grad()  # Clear gradients
 
-        optimizer.zero_grad()
-        loss.backward()
+        # Mixed precision forward pass
+        with torch.cuda.amp.autocast():
+            prediction = model(sample)
+            loss = criterion(prediction, labels)
+
+        # Backward pass
+        scaler.scale(loss).backward()  # Scale the loss before backward
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optimizer.step()
+        scaler.step(optimizer)  # Step the optimizer
+        scaler.update()  # Update the scale for the next iteration
+
+        # Accumulate loss and accuracy
+        train_loss += loss.item()
+        train_acc += (prediction.round() == labels).sum().item()
+        total_train_samples += len(labels)
+
+        # Clear cache if needed
+        torch.cuda.empty_cache()
 
     # Average training loss and accuracy
-    train_loss /= total_train_samples  # Average loss over total samples
-    train_acc /= total_train_samples    # Average accuracy over total samples
+    train_loss /= total_train_samples
+    train_acc /= total_train_samples
 
     model.eval()  # Evaluation
     with torch.no_grad():
         for sample in tqdm(val_dataloader):
-            prediction = model(sample)
-            loss = criterion(prediction, sample['label'].float().to(device))
+            labels = sample['label'].float().to(device)
+
+            with torch.cuda.amp.autocast():
+                prediction = model(sample)
+                loss = criterion(prediction, labels)
 
             val_loss += loss.item()
-            val_acc += (prediction.round() == sample['label'].float().to(device)).sum().item()
-            total_val_samples += len(sample['label'])
+            val_acc += (prediction.round() == labels).sum().item()
+            total_val_samples += len(labels)
 
     # Average validation loss and accuracy
-    val_loss /= total_val_samples  # Average loss over total samples
-    val_acc /= total_val_samples    # Average accuracy over total samples
+    val_loss /= total_val_samples
+    val_acc /= total_val_samples
 
     train_losses.append(train_loss)
     train_accies.append(train_acc)
@@ -117,20 +136,19 @@ for epoch in range(args.epochs):
     print(f'Epoch: {epoch} | Train Loss: {train_loss:.4f} | Train Acc: {train_acc:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.4f}')
 
 item = {
-    'Train' : {
-        'loss' : train_losses,
-        'acc' : train_accies
+    'Train': {
+        'loss': torch.tensor(train_losses),
+        'acc': torch.tensor(train_accies)
     },
-    'Val' : {
-        'loss' : val_losses,
-        'acc' : val_accies
+    'Val': {
+        'loss': torch.tensor(val_losses),
+        'acc': torch.tensor(val_accies)
     }
 }
 
 # Saving training and evaluation phase
 torch.save(model.state_dict(), args.checkpoint)
-with open(args.train_val_metric, 'w') as f:
-    json.dump(item, f)
+torch.save(item, args.train_val_metric)  # Save metrics as a PyTorch tensor
 
 print('================')
 print('Inference')
@@ -139,17 +157,18 @@ model.eval()
 y_true = torch.tensor([]).to(device)
 y_pred = torch.tensor([]).to(device)
 
-for sample in tqdm(test_dataloader):
-  prediction = model(sample)
-  y_pred = torch.cat((y_pred, prediction.round()))
-  y_true = torch.cat((y_true, sample['label'].to(device)))
+with torch.no_grad():
+  for sample in tqdm(test_dataloader):
+    with torch.cuda.amp.autocast():
+      prediction = model(sample)
+    y_pred = torch.cat((y_pred, prediction.round()))
+    y_true = torch.cat((y_true, sample['label'].to(device)))
 
 results = {
-    'true' : y_true,
-    'prediction' : y_pred,
+    'true': y_true,
+    'prediction': y_pred,
 }
 
-with open(args.result_output, 'w') as f:
-    json.dump(results, f)
+torch.save(results, args.result_output)  # Save results as a PyTorch tensor
 
 print('The script did run successfully')
